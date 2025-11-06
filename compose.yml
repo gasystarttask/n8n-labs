@@ -18,6 +18,23 @@ services:
       - n8n_data:/home/node/.n8n
       - ./local-files:/files
 
+  discord-bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-}
+    depends_on:
+      - n8n
+    networks:
+      - default
+    # Optional: Add volume for logs
+    volumes:
+      - discord_bot_logs:/app/logs
 
   mongodb:
     image: mongodb/mongodb-community-server:6.0-ubi8
@@ -31,3 +48,4 @@ services:
 volumes:
   n8n_data:
   mongodb_data:
+  discord_bot_logs:

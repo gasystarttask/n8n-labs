@@ -1,0 +1,22 @@
+# Docker Compose override for development
+# This file is automatically loaded by docker-compose for development environments
+# Use: docker-compose -f compose.yml -f docker-compose.dev.yml up
+
+services:
+  discord-bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      # Mount source code for development (hot reload with nodemon)
+      - ./bot:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    environment:
+      - NODE_ENV=development
+    # Development runs with nodemon automatically via Dockerfile CMD
+    
+  n8n:
+    environment:
+      - NODE_ENV=development
+      - N8N_LOG_LEVEL=debug

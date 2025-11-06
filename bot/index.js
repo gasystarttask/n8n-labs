@@ -4,12 +4,12 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Create a new client instance
+// Create a new client instance with full intents (enable Message Content Intent in Discord Portal first)
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.MessageContent,  // Enable this intent in Discord Developer Portal
         GatewayIntentBits.DirectMessages
     ]
 });

@@ -66,6 +66,36 @@ DISCORD_GUILD_ID=
 
 ### 5. Installation and Running
 
+#### Option A: Docker Compose (Recommended)
+
+1. From the root directory, make sure you have your environment variables set:
+```bash
+# Copy and edit the environment file
+cp .env.example .env
+# Edit .env with your Discord token
+```
+
+2. Start all services (n8n, MongoDB, and Discord bot):
+```bash
+docker-compose up -d
+```
+
+3. View logs:
+```bash
+# View all logs
+docker-compose logs -f
+
+# View only Discord bot logs
+docker-compose logs -f discord-bot
+```
+
+4. Stop services:
+```bash
+docker-compose down
+```
+
+#### Option B: Local Development
+
 ```bash
 # Install dependencies
 npm install
@@ -164,3 +194,36 @@ To run in development mode with auto-restart:
 npm install -g nodemon
 nodemon index.js
 ```
+
+## Docker
+
+### Building the Docker Image
+```bash
+# From the bot directory
+docker build -t discord-bot .
+```
+
+### Running with Docker
+```bash
+# Run standalone (make sure to set environment variables)
+docker run -d --name discord-bot \
+  -e DISCORD_TOKEN=your_token_here \
+  -e N8N_WEBHOOK_URL=http://your-n8n-host:5678/webhook/discord \
+  discord-bot
+
+# Or use docker-compose (recommended)
+cd .. && docker-compose up -d
+```
+
+### Docker Configuration
+
+The Docker setup includes:
+- **Node.js 20 Alpine**: Latest stable Node.js on lightweight Alpine Linux
+- **Non-root user**: Runs as `discordbot` user for security
+- **Health checks**: Monitors bot status
+- **Volume mounting**: For persistent logs
+- **Network isolation**: Proper Docker networking between services
+
+### Environment Variables in Docker
+
+When running with Docker Compose, the bot automatically connects to n8n using the internal Docker network (`http://n8n:5678/webhook/discord`). No need to change the webhook URL manually.
