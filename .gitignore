@@ -113,3 +113,17 @@ models/*
 # Examples files except .gitkeep file
 examples/*
 !examples/.gitkeep
+
+# Ignore python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore pytest cache
+.pytest_cache/
+
+# Ignore virtual environment folders
+venv/
+env/
+.venv/
+.env/
