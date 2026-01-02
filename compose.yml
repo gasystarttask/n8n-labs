@@ -124,6 +124,23 @@ services:
       - --api-key
       - "__n8n_BLANK_VALUE_e5362baf-c777-4d57-a609-6eaf1f9e87f"
 
+  # Arch Linux sandbox with SSH
+  # arch-sandbox:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/arch-sandbox.Dockerfile
+  #     args:
+  #       SANDBOX_USER: ${SANDBOX_USER:-sandbox}
+  #       SANDBOX_PASSWORD: ${SANDBOX_PASSWORD:-sandbox}
+  #   container_name: arch-sandbox
+  #   ports:
+  #     - "2222:22"
+  #   volumes:
+  #     - ./local-files:/home/${SANDBOX_USER:-sandbox}/local-files
+  #   restart: unless-stopped
+  #   networks:
+  #     - default
+
 volumes:
   n8n_data:
   mongodb_data:
