@@ -7,13 +7,14 @@ os.environ["EEG_COLLECTION_NAME"] = "eeg_records"
 
 
 import pytest
-from mcp_eeg_dataset.mcp_eeg_dataset.server import getOne, getMany, find
+from mcp_eeg_dataset.mcp_eeg_dataset.server import getEegAdultAnalysis, getMany, find
 
 class TestEegDatasetTools:
     @pytest.mark.asyncio
-    async def test_getOne(self):
-        result = await getOne("example_id")
+    async def test_getEegAdultAnalysis(self):
+        result = await getEegAdultAnalysis("example_id")
         assert isinstance(result, dict) or result is None
+        
     @pytest.mark.asyncio
     async def test_getMany(self):
         result = await getMany(skip=0, limit=2)

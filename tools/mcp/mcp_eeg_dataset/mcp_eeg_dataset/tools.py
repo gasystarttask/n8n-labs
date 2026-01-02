@@ -23,10 +23,10 @@ def register_tool(name: str):
 		return func
 	return decorator
 
-@register_tool("getOne")
-async def getOne(eeg_id: str) -> Optional[Dict[str, Any]]:
+@register_tool("getEegAdultAnalysis")
+async def getEegAdultAnalysis(eeg_id: str) -> Optional[Dict[str, Any]]:
 	server = _get_server()
-	result = await server.getOne(eeg_id)
+	result = await server.getEegAdultAnalysis(eeg_id)
 	return cast(Optional[Dict[str, Any]], result)
 
 @register_tool("getMany")

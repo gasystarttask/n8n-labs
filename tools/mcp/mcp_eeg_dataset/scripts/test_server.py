@@ -11,7 +11,7 @@ def print_response(label, response):
     if response.status_code == 200:
         try:
             result = response.json()
-            print(f"✓ {label}: success -> {result.get('success', False)}")
+            print(f"✓ {label}: {result}")
             return result
         except Exception:
             print(f"✓ {label} (non-JSON): {response.text}")
@@ -60,16 +60,53 @@ async def test_eeg_dataset_server(server_url: str = "http://localhost:8012"):
         print("\n--- Testing getMany ---")
         getmany_result = await post_tool(client, server_url, "getMany", {"skip": 0, "limit": 2}, "getMany")
 
-        # getOne
-        print("\n--- Testing getOne ---")
-        eeg_id = "6954495028fa2c2b3898df27"
+        # getEegAdultAnalysis
+        print("\n--- Testing getEegAdultAnalysis ---")
+        eeg_id = ""
         if getmany_result and getmany_result.get("success"):
             records = getmany_result.get("result", [])
             if records and isinstance(records, list) and '_id' in records[0]:
                 eeg_id = records[0]['_id']
             elif records and isinstance(records, list) and len(records) > 0:
                 eeg_id = records[0].get('_id', eeg_id)
-        await post_tool(client, server_url, "getOne", {"eeg_id": eeg_id}, "getOne")
+        await post_tool(client, server_url, "getEegAdultAnalysis", {"eeg_id": eeg_id}, "getEegAdultAnalysis")
+
+        # getEegAdultInterpretation
+        print("\n--- Testing getEegAdultInterpretation ---")
+        eeg_id = ""
+        if getmany_result and getmany_result.get("success"):
+            records = getmany_result.get("result", [])
+            if records and isinstance(records, list) and '_id' in records[0]:
+                eeg_id = records[0]['_id']
+            elif records and isinstance(records, list) and len(records) > 0:
+                eeg_id = records[0].get('_id', eeg_id)
+        await post_tool(client, server_url, "getEegAdultInterpretation", {"eeg_id": eeg_id}, "getEegAdultInterpretation")
+
+        # getEegAdultObservation
+        print("\n--- Testing getEegAdultObservation ---")
+        eeg_id = ""
+        if getmany_result and getmany_result.get("success"):
+            records = getmany_result.get("result", [])
+            if records and isinstance(records, list) and '_id' in records[0]:
+                eeg_id = records[0]['_id']
+            elif records and isinstance(records, list) and len(records) > 0:
+                eeg_id = records[0].get('_id', eeg_id)
+        await post_tool(client, server_url, "getEegAdultObservation", {"eeg_id": eeg_id}, "getEegAdultObservation")
+
+        # getEegAdultRecording
+        print("\n--- Testing getEegAdultRecording ---")
+        eeg_id = ""
+        if getmany_result and getmany_result.get("success"):
+            records = getmany_result.get("result", [])
+            if records and isinstance(records, list) and '_id' in records[0]:
+                eeg_id = records[0]['_id']
+            elif records and isinstance(records, list) and len(records) > 0:
+                eeg_id = records[0].get('_id', eeg_id)
+        await post_tool(client, server_url, "getEegAdultRecording", {"eeg_id": eeg_id}, "getEegAdultRecording")
+        
+        # countEegRecords
+        print("\n--- Testing countEegRecords ---")
+        await post_tool(client, server_url, "countEegRecords", {}, "countEegRecords")
 
         # find
         print("\n--- Testing find ---")
