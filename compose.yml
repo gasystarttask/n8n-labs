@@ -54,7 +54,7 @@ services:
     container_name: mcp-content-creation
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     ports:
-      - "8011:8011"
+      - "127.0.0.1:8011:8011"
     volumes:
       - ./:/app:ro
       - ./outputs/mcp-content:/output  # Bind mount to local outputs directory
@@ -81,7 +81,7 @@ services:
     container_name: mcp-eeg-dataset
     user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
     ports:
-      - "8012:8012"
+      - "127.0.0.1:8012:8012"
     volumes:
       - ./:/app:ro
     environment:
@@ -99,30 +99,30 @@ services:
       start_period: 20s
 
   # Llama.cpp server
-  llama-server:
-    image: ghcr.io/ggml-org/llama.cpp:server
-    container_name: llama-server
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./models:/models
-    networks:
-      - default
-    command:
-      - -m
-      - /models/Llama-3.2-1B-Instruct-Q4_1.gguf
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8080"
-      - --ctx-size
-      - "4096"
-      - -n
-      - "512"
-      - -t
-      - "2"
-      - --api-key
-      - "__n8n_BLANK_VALUE_e5362baf-c777-4d57-a609-6eaf1f9e87f"
+  # llama-server:
+  #   image: ghcr.io/ggml-org/llama.cpp:server
+  #   container_name: llama-server
+  #   ports:
+  #     - "127.0.0.1:8080:8080"
+  #   volumes:
+  #     - ./models:/models
+  #   networks:
+  #     - default
+  #   command:
+  #     - -m
+  #     - /models/Llama-3.2-1B-Instruct-Q4_1.gguf
+  #     - --host
+  #     - 127.0.0.1
+  #     - --port
+  #     - "8080"
+  #     - --ctx-size
+  #     - "4096"
+  #     - -n
+  #     - "512"
+  #     - -t
+  #     - "2"
+  #     - --api-key
+  #     - "__n8n_BLANK_VALUE_e5362baf-c777-4d57-a609-6eaf1f9e87f"
 
   # Arch Linux sandbox with SSH
   # arch-sandbox:
