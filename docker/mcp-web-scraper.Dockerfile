@@ -14,11 +14,9 @@ WORKDIR /app
 
 # Copy requirements first for better layer caching
 COPY tools/mcp/mcp_web_scraper/requirements.txt /app/requirements.txt
-COPY tools/mcp/mcp_core/requirements.txt /app/requirements-core.txt
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r requirements-core.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy MCP core and web scraper packages
 COPY tools/mcp/mcp_core /app/mcp_core
