@@ -3,13 +3,14 @@
 import argparse
 import asyncio
 import os
+import random
 import time
 from collections import deque
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urldefrag, urljoin, urlparse
 from urllib.error import HTTPError, URLError
 from urllib import robotparser
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 import aiohttp
 
@@ -31,6 +32,18 @@ from mcp_core.utils import setup_logging
 
 BROWSERLESS_URL = os.getenv("BROWSERLESS_URL", "")
 BROWSERLESS_TOKEN = os.getenv("BROWSERLESS_TOKEN", "")
+
+# Pool of real browser User-Agent strings for rotation (Chrome/Firefox/Safari, multi-OS)
+USER_AGENT_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.4; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+]
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -256,9 +269,20 @@ class WebScraperMCPServer(BaseMCPServer):
         return None
 
     @staticmethod
-    def _blocking_fetch(url: str, timeout: int, headers: Dict[str, str]) -> Tuple[str, int, str]:
+    def _blocking_fetch(
+        url: str,
+        timeout: int,
+        headers: Dict[str, str],
+        proxy_url: Optional[str] = None,
+    ) -> Tuple[str, int, str]:
         req = Request(url, headers=headers)
         try:
+            if proxy_url:
+                opener = build_opener(ProxyHandler({"http": proxy_url, "https": proxy_url}))
+                response = opener.open(req, timeout=timeout)
+                body = response.read().decode("utf-8", errors="replace")
+                response.close()
+                return response.geturl(), int(response.status), body
             with urlopen(req, timeout=timeout) as response:
                 body = response.read().decode("utf-8", errors="replace")
                 return response.geturl(), int(response.status), body
@@ -281,6 +305,8 @@ class WebScraperMCPServer(BaseMCPServer):
         headers = dict(DEFAULT_HEADERS)
         if compliant_mode:
             headers["User-Agent"] = "mcp-web-scraper/1.0 (+https://github.com/gasystarttask/n8n-labs)"
+        else:
+            headers["User-Agent"] = random.choice(USER_AGENT_POOL)
         return headers
 
     async def _enforce_request_interval(self, url: str, min_request_interval_seconds: float):
@@ -288,7 +314,9 @@ class WebScraperMCPServer(BaseMCPServer):
         now = time.monotonic()
         last = self._last_request_at.get(domain)
         if last is not None:
-            wait = min_request_interval_seconds - (now - last)
+            # Apply ±30% jitter so timing patterns are less fingerprint-able
+            jittered = min_request_interval_seconds * random.uniform(0.7, 1.3)
+            wait = jittered - (now - last)
             if wait > 0:
                 await asyncio.sleep(wait)
         self._last_request_at[domain] = time.monotonic()
@@ -304,17 +332,22 @@ class WebScraperMCPServer(BaseMCPServer):
             self._robots_cache[robots_url] = parser
         return bool(parser.can_fetch(user_agent, url))
 
-    async def _browser_fetch(self, url: str, timeout: int) -> Tuple[str, int, str]:
+    async def _browser_fetch(
+        self, url: str, timeout: int, proxy_url: Optional[str] = None
+    ) -> Tuple[str, int, str]:
         """Fetch a JS-rendered page via Browserless headless Chrome."""
         endpoint = f"{BROWSERLESS_URL}/chromium/content"
         params = {"token": BROWSERLESS_TOKEN} if BROWSERLESS_TOKEN else {}
-        payload = {
+        payload: Dict[str, Any] = {
             "url": url,
+            "userAgent": random.choice(USER_AGENT_POOL),
             "gotoOptions": {
                 "waitUntil": "networkidle2",
                 "timeout": timeout * 1000,
             },
         }
+        if proxy_url:
+            payload["launch"] = {"args": [f"--proxy-server={proxy_url}"]}
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 endpoint,
@@ -343,12 +376,13 @@ class WebScraperMCPServer(BaseMCPServer):
         compliant_mode: bool,
         min_request_interval_seconds: float,
         use_browser: bool = False,
+        proxy_url: Optional[str] = None,
     ) -> Tuple[str, int, str]:
         if compliant_mode:
             await self._enforce_request_interval(url, min_request_interval_seconds)
         if use_browser and BROWSERLESS_URL:
-            return await self._browser_fetch(url, timeout)
-        return await asyncio.to_thread(self._blocking_fetch, url, timeout, headers)
+            return await self._browser_fetch(url, timeout, proxy_url=proxy_url)
+        return await asyncio.to_thread(self._blocking_fetch, url, timeout, headers, proxy_url)
 
     def get_tools(self) -> Dict[str, Dict[str, Any]]:
         """Return available web scraper tools"""
@@ -386,6 +420,10 @@ class WebScraperMCPServer(BaseMCPServer):
                             "type": "boolean",
                             "default": True,
                             "description": "Use Browserless headless Chrome for JS-rendered pages (requires BROWSERLESS_URL env var)",
+                        },
+                        "proxy_url": {
+                            "type": "string",
+                            "description": "Optional proxy URL (e.g. http://user:pass@host:port) for IP rotation",
                         },
                     },
                     "required": ["url", "selectors"],
@@ -444,6 +482,10 @@ class WebScraperMCPServer(BaseMCPServer):
                             "default": True,
                             "description": "Use Browserless headless Chrome for JS-rendered pages (requires BROWSERLESS_URL env var)",
                         },
+                        "proxy_url": {
+                            "type": "string",
+                            "description": "Optional proxy URL (e.g. http://user:pass@host:port) for IP rotation",
+                        },
                     },
                     "required": ["start_url", "follow_links", "selectors"],
                 },
@@ -458,6 +500,7 @@ class WebScraperMCPServer(BaseMCPServer):
         compliant_mode: bool = True,
         min_request_interval_seconds: float = 1.0,
         use_browser: bool = True,
+        proxy_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Extract structured data from a single web page."""
         start_time = time.time()
@@ -481,6 +524,7 @@ class WebScraperMCPServer(BaseMCPServer):
                     compliant_mode,
                     min_request_interval_seconds,
                     use_browser=use_browser,
+                    proxy_url=proxy_url,
                 )
             except asyncio.TimeoutError:
                 self.logger.error("Scrape page timeout for URL: %s", url)
@@ -531,6 +575,7 @@ class WebScraperMCPServer(BaseMCPServer):
         compliant_mode: bool = True,
         min_request_interval_seconds: float = 1.0,
         use_browser: bool = True,
+        proxy_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Crawl a website with bounded limits."""
         start_time = time.time()
@@ -575,6 +620,7 @@ class WebScraperMCPServer(BaseMCPServer):
                         compliant_mode,
                         min_request_interval_seconds,
                         use_browser=use_browser,
+                        proxy_url=proxy_url,
                     )
                 except Exception as e:
                     blocked_reason = blocked_reason or self._classify_error(str(e))

@@ -49,6 +49,7 @@ class TestWebScraperMCPServer:
         assert "compliant_mode" in props
         assert "min_request_interval_seconds" in props
         assert "use_browser" in props
+        assert "proxy_url" in props
 
         assert props["url"]["type"] == "string"
         assert props["timeout"]["type"] == "integer"
@@ -83,6 +84,7 @@ class TestWebScraperMCPServer:
         assert "compliant_mode" in props
         assert "min_request_interval_seconds" in props
         assert "use_browser" in props
+        assert "proxy_url" in props
 
         assert props["max_pages"]["default"] == 10
         assert props["max_depth"]["default"] == 2
