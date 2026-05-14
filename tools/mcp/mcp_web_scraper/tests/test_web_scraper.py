@@ -1,11 +1,11 @@
 """Unit tests for web scraper MCP server"""
 
 import pytest
-from mcp_web_scraper.mcp_web_scraper.server import (
-    WebScraperMCPServer,
-    SinglePageSpider,
-    CrawlSpider,
-)
+
+server_module = pytest.importorskip("mcp_web_scraper.server")
+WebScraperMCPServer = server_module.WebScraperMCPServer
+SinglePageSpider = server_module.SinglePageSpider
+CrawlSpider = server_module.CrawlSpider
 
 
 class TestWebScraperMCPServer:

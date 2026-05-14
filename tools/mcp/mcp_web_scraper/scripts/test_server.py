@@ -5,9 +5,7 @@ Run this after starting the server with: python -m mcp_web_scraper.server --mode
 """
 
 import asyncio
-import json
 import sys
-from typing import Any, Dict
 
 try:
     import httpx
@@ -132,6 +130,32 @@ class WebScraperMCPTester:
             self.log_test("crawl_site schema", False, f"Error: {e}")
             return False
 
+    async def test_execute_endpoint(self):
+        """Test /mcp/execute endpoint with scrape_page tool."""
+        payload = {
+            "tool": "scrape_page",
+            "parameters": {
+                "url": "https://example.com",
+                "selectors": {"title": "h1"},
+                "timeout": 10,
+            },
+        }
+        try:
+            response = self.client.post(f"{self.base_url}/mcp/execute", json=payload)
+            if response.status_code != 200:
+                self.log_test("Execute endpoint", False, f"Status: {response.status_code}")
+                return False
+
+            body = response.json()
+            # Keep this check resilient to small response-shape differences.
+            result = body.get("result", body)
+            passed = isinstance(result, dict) and "success" in result
+            self.log_test("Execute endpoint", passed, "scrape_page returned a result payload")
+            return passed
+        except Exception as e:
+            self.log_test("Execute endpoint", False, f"Error: {e}")
+            return False
+
     def print_summary(self):
         """Print test summary"""
         print("\n" + "=" * 50)
@@ -159,6 +183,7 @@ async def main():
         await tester.test_tools_endpoint()
         await tester.test_scrape_page_schema()
         await tester.test_crawl_site_schema()
+        await tester.test_execute_endpoint()
 
         success = tester.print_summary()
         sys.exit(0 if success else 1)
