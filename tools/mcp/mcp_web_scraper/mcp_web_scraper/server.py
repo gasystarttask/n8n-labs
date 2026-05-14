@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import os
 import time
 from collections import deque
 from typing import Any, Dict, List, Set, Tuple
@@ -9,6 +10,8 @@ from urllib.parse import urldefrag, urljoin, urlparse
 from urllib.error import HTTPError, URLError
 from urllib import robotparser
 from urllib.request import Request, urlopen
+
+import aiohttp
 
 from twisted.internet import asyncioreactor
 
@@ -25,6 +28,9 @@ from parsel import Selector
 from mcp_core.base_server import BaseMCPServer
 from mcp_core.utils import setup_logging
 
+
+BROWSERLESS_URL = os.getenv("BROWSERLESS_URL", "")
+BROWSERLESS_TOKEN = os.getenv("BROWSERLESS_TOKEN", "")
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -298,6 +304,33 @@ class WebScraperMCPServer(BaseMCPServer):
             self._robots_cache[robots_url] = parser
         return bool(parser.can_fetch(user_agent, url))
 
+    async def _browser_fetch(self, url: str, timeout: int) -> Tuple[str, int, str]:
+        """Fetch a JS-rendered page via Browserless headless Chrome."""
+        endpoint = f"{BROWSERLESS_URL}/chromium/content"
+        params = {"token": BROWSERLESS_TOKEN} if BROWSERLESS_TOKEN else {}
+        payload = {
+            "url": url,
+            "gotoOptions": {
+                "waitUntil": "networkidle2",
+                "timeout": timeout * 1000,
+            },
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                endpoint,
+                json=payload,
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=timeout + 5),
+            ) as resp:
+                html = await resp.text()
+                if resp.status >= 400:
+                    marker = ""
+                    lowered = html.lower()
+                    if any(tok in lowered for tok in ["captcha", "cloudflare", "datadome", "forbidden"]):
+                        marker = " [likely anti-bot protection]"
+                    raise RuntimeError(f"HTTP {resp.status}: {resp.reason}{marker}")
+                return str(resp.url), resp.status, html
+
     async def _fetch_url(
         self,
         url: str,
@@ -305,9 +338,12 @@ class WebScraperMCPServer(BaseMCPServer):
         headers: Dict[str, str],
         compliant_mode: bool,
         min_request_interval_seconds: float,
+        use_browser: bool = False,
     ) -> Tuple[str, int, str]:
         if compliant_mode:
             await self._enforce_request_interval(url, min_request_interval_seconds)
+        if use_browser and BROWSERLESS_URL:
+            return await self._browser_fetch(url, timeout)
         return await asyncio.to_thread(self._blocking_fetch, url, timeout, headers)
 
     def get_tools(self) -> Dict[str, Dict[str, Any]]:
@@ -341,6 +377,11 @@ class WebScraperMCPServer(BaseMCPServer):
                             "type": "number",
                             "default": 1.0,
                             "description": "Minimum delay between requests to the same domain in compliant mode",
+                        },
+                        "use_browser": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "Use Browserless headless Chrome for JS-rendered pages (requires BROWSERLESS_URL env var)",
                         },
                     },
                     "required": ["url", "selectors"],
@@ -394,6 +435,11 @@ class WebScraperMCPServer(BaseMCPServer):
                             "default": 1.0,
                             "description": "Minimum delay between requests to the same domain in compliant mode",
                         },
+                        "use_browser": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "Use Browserless headless Chrome for JS-rendered pages (requires BROWSERLESS_URL env var)",
+                        },
                     },
                     "required": ["start_url", "follow_links", "selectors"],
                 },
@@ -407,6 +453,7 @@ class WebScraperMCPServer(BaseMCPServer):
         timeout: int = 30,
         compliant_mode: bool = True,
         min_request_interval_seconds: float = 1.0,
+        use_browser: bool = True,
     ) -> Dict[str, Any]:
         """Extract structured data from a single web page."""
         start_time = time.time()
@@ -429,6 +476,7 @@ class WebScraperMCPServer(BaseMCPServer):
                     headers,
                     compliant_mode,
                     min_request_interval_seconds,
+                    use_browser=use_browser,
                 )
             except asyncio.TimeoutError:
                 self.logger.error("Scrape page timeout for URL: %s", url)
@@ -478,6 +526,7 @@ class WebScraperMCPServer(BaseMCPServer):
         timeout_seconds: int = 120,
         compliant_mode: bool = True,
         min_request_interval_seconds: float = 1.0,
+        use_browser: bool = True,
     ) -> Dict[str, Any]:
         """Crawl a website with bounded limits."""
         start_time = time.time()
@@ -521,6 +570,7 @@ class WebScraperMCPServer(BaseMCPServer):
                         headers,
                         compliant_mode,
                         min_request_interval_seconds,
+                        use_browser=use_browser,
                     )
                 except Exception as e:
                     blocked_reason = blocked_reason or self._classify_error(str(e))
