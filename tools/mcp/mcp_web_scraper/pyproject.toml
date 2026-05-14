@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-web-scraper"
+version = "1.0.0"
+description = "Web Scraper MCP Server - Scrapy-based web scraping with bounded crawl controls"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "AndrewAltimit"},
+]
+keywords = ["mcp", "web_scraper", "scrapy", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "mcp-core>=1.0.0",
+    "scrapy>=2.9.0",
+    "python-dotenv>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "isort>=5.12",
+    "flake8>=6.0",
+    "mypy>=1.0",
+    "pylint>=2.17.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/gasystarttask/n8n-labs"
+"Bug Reports" = "https://github.com/gasystarttask/n8n-labs/issues"
+"Source" = "https://github.com/gasystarttask/n8n-labs/tree/main/tools/mcp/mcp_web_scraper"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_web_scraper"]
