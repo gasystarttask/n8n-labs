@@ -19,12 +19,15 @@ COPY tools/mcp/mcp_web_scraper/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy MCP core and web scraper packages
-COPY tools/mcp/mcp_core /app/mcp_core
-COPY tools/mcp/mcp_web_scraper /app/mcp_web_scraper
+COPY tools/mcp/mcp_core /app/tools/mcp/mcp_core
+COPY tools/mcp/mcp_web_scraper /app/tools/mcp/mcp_web_scraper
 
-# Install packages in editable mode
-RUN cd /app/mcp_core && pip install -e . && \
-    cd /app/mcp_web_scraper && pip install -e .
+# Install packages
+RUN pip install --no-cache-dir /app/tools/mcp/mcp_core && \
+    pip install --no-cache-dir /app/tools/mcp/mcp_web_scraper
+
+# Set Python path
+ENV PYTHONPATH=/app
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

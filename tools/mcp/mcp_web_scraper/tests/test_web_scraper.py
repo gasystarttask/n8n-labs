@@ -1,113 +1,97 @@
-<<<<<<< HEAD
-"""Scaffold tests for web scraper MCP server."""
+"""Unit tests for web scraper MCP server."""
+
+import sys
+from pathlib import Path
 
 import pytest
 
-from mcp_web_scraper.server import WebScraperMCPServer
+MCP_ROOT = Path(__file__).resolve().parents[2]
+WEB_SCRAPER_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(MCP_ROOT / "mcp_core"))
+sys.path.insert(0, str(WEB_SCRAPER_ROOT))
+
+from mcp_web_scraper.server import CrawlSpider, SinglePageSpider, WebScraperMCPServer
 
 
-def test_server_initialization():
-    """Server should initialize with expected metadata."""
-    server = WebScraperMCPServer()
-    assert server.name == "Web Scraper MCP Server"
-    assert server.version == "1.0.0"
-    assert server.port == 8013
+class TestWebScraperMCPServer:
+    """Tests for WebScraperMCPServer."""
 
-
-def test_tools_hidden_by_default(monkeypatch):
-    """Scaffold branch should not expose non-functional tools by default."""
-    monkeypatch.delenv("MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS", raising=False)
-    server = WebScraperMCPServer()
-    assert server.get_tools() == {}
-
-
-def test_tool_contracts_exposed_with_flag(monkeypatch):
-    """Tool contracts should be visible only when explicitly enabled."""
-    monkeypatch.setenv("MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS", "true")
-    server = WebScraperMCPServer()
-    tools = server.get_tools()
-
-    assert "scrape_page" in tools
-    assert "crawl_site" in tools
-
-    scrape_required = tools["scrape_page"]["parameters"]["required"]
-    crawl_required = tools["crawl_site"]["parameters"]["required"]
-    assert scrape_required == ["url", "selectors"]
-    assert crawl_required == ["start_url", "follow_links", "selectors"]
-
-
-@pytest.mark.asyncio
-async def test_scrape_page_scaffold_response():
-    """Scaffold execution should return a stable not-implemented payload."""
-    server = WebScraperMCPServer()
-    result = await server.scrape_page("https://example.com", {"title": "h1"})
-
-    assert result["success"] is False
-    assert "Not yet implemented" in result["error"]
-
-
-@pytest.mark.asyncio
-async def test_crawl_site_scaffold_response():
-    """Scaffold execution should return a stable not-implemented payload."""
-    server = WebScraperMCPServer()
-    result = await server.crawl_site(
-        start_url="https://example.com",
-
-
+    @pytest.fixture
+    def server(self):
         return WebScraperMCPServer()
-        """Unit tests for web scraper MCP server"""
 
-        import pytest
+    def test_server_initialization(self, server):
+        assert server.name == "Web Scraper MCP Server"
+        assert server.version == "1.0.0"
+        assert server.port == 8013
 
-        server_module = pytest.importorskip("mcp_web_scraper.server")
-        WebScraperMCPServer = server_module.WebScraperMCPServer
-        SinglePageSpider = server_module.SinglePageSpider
-        CrawlSpider = server_module.CrawlSpider
+    def test_get_tools_returns_both_tools(self, server):
+        tools = server.get_tools()
+        assert "scrape_page" in tools
+        assert "crawl_site" in tools
 
+    def test_scrape_page_tool_schema(self, server):
+        tools = server.get_tools()
+        scrape_page = tools["scrape_page"]
 
-        class TestWebScraperMCPServer:
-            """Tests for WebScraperMCPServer"""
+        assert "Extract structured data" in scrape_page["description"]
+        assert "CSS/XPath" in scrape_page["description"]
 
-            @pytest.fixture
-            def server(self):
-                """Create a server instance"""
-                return WebScraperMCPServer()
+        params = scrape_page["parameters"]
+        assert params["type"] == "object"
+        assert "url" in params["required"]
+        assert "selectors" in params["required"]
 
-            def test_server_initialization(self, server):
+        props = params["properties"]
+        assert "url" in props
+        assert "selectors" in props
+        assert "timeout" in props
 
-        # Check bounded control parameters
+        assert props["url"]["type"] == "string"
+        assert props["timeout"]["type"] == "integer"
+        assert props["timeout"]["default"] == 30
+        assert props["selectors"]["type"] == "object"
+
+    def test_crawl_site_tool_schema(self, server):
+        tools = server.get_tools()
+        crawl_site = tools["crawl_site"]
+
+        assert "Crawl a website" in crawl_site["description"]
+        assert "bounded limits" in crawl_site["description"]
+
+        params = crawl_site["parameters"]
+        assert params["type"] == "object"
+        required = params["required"]
+        assert "start_url" in required
+        assert "follow_links" in required
+        assert "selectors" in required
+
         props = params["properties"]
         assert "max_pages" in props
         assert "max_depth" in props
         assert "timeout_seconds" in props
         assert "allowed_domains" in props
 
-        # Check defaults for bounded controls
         assert props["max_pages"]["default"] == 10
         assert props["max_depth"]["default"] == 2
         assert props["timeout_seconds"]["default"] == 120
 
-    def test_crawl_limits_enforcement(self, server):
-        """Test that crawl limits are enforced in schema"""
+    def test_crawl_limits_enforcement_schema(self, server):
         tools = server.get_tools()
         crawl_site = tools["crawl_site"]
         props = crawl_site["parameters"]["properties"]
 
-        # Verify all limit parameters are integer type
         assert props["max_pages"]["type"] == "integer"
         assert props["max_depth"]["type"] == "integer"
         assert props["timeout_seconds"]["type"] == "integer"
-
-        # Verify allowed_domains is array type
         assert props["allowed_domains"]["type"] == "array"
         assert props["allowed_domains"]["items"]["type"] == "string"
 
 
 class TestSinglePageSpider:
-    """Tests for SinglePageSpider"""
+    """Tests for SinglePageSpider."""
 
     def test_spider_initialization(self):
-        """Test spider initializes with correct parameters"""
         url = "https://example.com"
         selectors = {"title": "h1", "body": ".content"}
 
@@ -117,7 +101,6 @@ class TestSinglePageSpider:
         assert spider.items == []
 
     def test_spider_settings(self):
-        """Test spider has proper custom settings"""
         spider = SinglePageSpider("https://example.com", {})
         settings = spider.custom_settings
 
@@ -128,10 +111,9 @@ class TestSinglePageSpider:
 
 
 class TestCrawlSpider:
-    """Tests for CrawlSpider"""
+    """Tests for CrawlSpider."""
 
     def test_spider_initialization(self):
-        """Test crawl spider initializes with correct parameters"""
         start_url = "https://example.com"
         follow_links = "a.article"
         selectors = {"title": "h2"}
@@ -151,10 +133,8 @@ class TestCrawlSpider:
         assert spider.max_depth == 2
 
     def test_spider_default_allowed_domains(self):
-        """Test spider extracts domain from start_url when allowed_domains not provided"""
-        start_url = "https://example.com/path"
         spider = CrawlSpider(
-            start_url=start_url,
+            start_url="https://example.com/path",
             follow_links="a",
             selectors={},
         )
@@ -162,7 +142,6 @@ class TestCrawlSpider:
         assert "example.com" in spider.allowed_domains
 
     def test_spider_custom_allowed_domains(self):
-        """Test spider uses provided allowed_domains"""
         domains = ["example.com", "news.example.com"]
         spider = CrawlSpider(
             start_url="https://example.com",
@@ -174,7 +153,6 @@ class TestCrawlSpider:
         assert spider.allowed_domains == domains
 
     def test_spider_settings(self):
-        """Test spider has proper custom settings for crawling"""
         spider = CrawlSpider(
             start_url="https://example.com",
             follow_links="a",
@@ -189,7 +167,6 @@ class TestCrawlSpider:
         assert "mcp-web-scraper" in settings["USER_AGENT"]
 
     def test_spider_limits_tracking(self):
-        """Test spider tracks limits properly"""
         spider = CrawlSpider(
             start_url="https://example.com",
             follow_links="a",
@@ -204,11 +181,9 @@ class TestCrawlSpider:
 
 
 class TestSelectorParsing:
-    """Tests for selector parsing logic"""
+    """Tests for selector parsing helper."""
 
     def test_css_selector_detection(self):
-        """Test that CSS selectors are properly detected"""
-        # CSS selectors don't start with // and don't have [
         css_selectors = [
             "h1",
             "div.article",
@@ -218,13 +193,9 @@ class TestSelectorParsing:
         ]
 
         for selector in css_selectors:
-            # CSS selectors should not start with // and should not have bracket-based XPath
             assert not selector.startswith("//")
-            assert "[" not in selector or "/" not in selector
 
     def test_xpath_selector_detection(self):
-        """Test that XPath selectors are properly detected"""
-        # XPath selectors start with // or have [
         xpath_selectors = [
             "//h1",
             "//div[@class='article']",
@@ -233,11 +204,9 @@ class TestSelectorParsing:
         ]
 
         for selector in xpath_selectors:
-            # XPath selectors should start with // or have [
             assert selector.startswith("//") or "[" in selector
 
     def test_selectors_can_be_mixed(self):
-        """Test that selectors can be CSS and XPath mixed"""
         mixed_selectors = {
             "title": "h1",
             "author": "//span[@class='author']",
@@ -246,6 +215,5 @@ class TestSelectorParsing:
         }
 
         assert len(mixed_selectors) == 4
-        assert mixed_selectors["title"] == "h1"  # CSS
-        assert mixed_selectors["author"].startswith("//")  # XPath
->>>>>>> origin/feature/issue-3-tests-docs
+        assert mixed_selectors["title"] == "h1"
+        assert mixed_selectors["author"].startswith("//")
