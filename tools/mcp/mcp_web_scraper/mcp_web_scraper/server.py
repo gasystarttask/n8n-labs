@@ -6,6 +6,7 @@ import time
 from collections import deque
 from typing import Any, Dict, List, Set, Tuple
 from urllib.parse import urldefrag, urljoin, urlparse
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from twisted.internet import asyncioreactor
@@ -22,6 +23,18 @@ from parsel import Selector
 
 from mcp_core.base_server import BaseMCPServer
 from mcp_core.utils import setup_logging
+
+
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,fr;q=0.8",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 
 def is_xpath_selector(selector: str) -> bool:
@@ -224,10 +237,24 @@ class WebScraperMCPServer(BaseMCPServer):
 
     @staticmethod
     def _blocking_fetch(url: str, timeout: int) -> Tuple[str, int, str]:
-        req = Request(url, headers={"User-Agent": "mcp-web-scraper/1.0"})
-        with urlopen(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8", errors="replace")
-            return response.geturl(), int(response.status), body
+        req = Request(url, headers=DEFAULT_HEADERS)
+        try:
+            with urlopen(req, timeout=timeout) as response:
+                body = response.read().decode("utf-8", errors="replace")
+                return response.geturl(), int(response.status), body
+        except HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            marker = ""
+            lowered = body.lower()
+            if any(token in lowered for token in ["captcha", "cloudflare", "datadome", "forbidden", "access denied"]):
+                marker = " [likely anti-bot protection]"
+            raise RuntimeError(f"HTTP {e.code}: {e.reason}{marker}") from e
+        except URLError as e:
+            raise RuntimeError(f"URL Error: {e.reason}") from e
 
     async def _fetch_url(self, url: str, timeout: int) -> Tuple[str, int, str]:
         return await asyncio.to_thread(self._blocking_fetch, url, timeout)
