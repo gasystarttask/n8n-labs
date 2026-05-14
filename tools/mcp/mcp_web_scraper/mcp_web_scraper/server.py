@@ -65,7 +65,6 @@ def is_xpath_selector(selector: str) -> bool:
         or value.startswith("./")
         or value.startswith("../")
         or value.startswith("(")
-        or "::" in value
     )
 
 
