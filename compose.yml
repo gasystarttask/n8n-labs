@@ -98,6 +98,26 @@ services:
       retries: 3
       start_period: 20s
 
+  # Browserless headless Chrome — provides a real browser for JS-rendered pages
+  browserless:
+    image: ghcr.io/browserless/chromium:latest
+    container_name: browserless
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - TIMEOUT=30000
+      - CONCURRENT=5
+      - TOKEN=local-browserless-token
+    networks:
+      - default
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/3000' 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # Web Scraper MCP Server
   mcp-web-scraper:
     build:
@@ -112,6 +132,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PORT=8013
+      - BROWSERLESS_URL=http://browserless:3000
+      - BROWSERLESS_TOKEN=local-browserless-token
+    depends_on:
+      - browserless
     networks:
       - default
     command: ["python", "-m", "mcp_web_scraper.server", "--mode", "http"]
