@@ -329,7 +329,11 @@ class WebScraperMCPServer(BaseMCPServer):
                     if any(tok in lowered for tok in ["captcha", "cloudflare", "datadome", "forbidden"]):
                         marker = " [likely anti-bot protection]"
                     raise RuntimeError(f"HTTP {resp.status}: {resp.reason}{marker}")
-                return str(resp.url), resp.status, html
+                # Detect bot-challenge pages served with 200 (e.g. DataDome CAPTCHA)
+                lowered = html.lower()
+                if "captcha-delivery.com" in lowered or "datadome" in lowered:
+                    raise RuntimeError("HTTP 200 but CAPTCHA challenge detected [likely anti-bot protection]")
+                return url, resp.status, html
 
     async def _fetch_url(
         self,
