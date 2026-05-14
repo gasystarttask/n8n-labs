@@ -82,7 +82,7 @@ class TestMCPClient:
 
         # Verify
         assert result == {"tools": ["tool1", "tool2"]}
-        mock_get.assert_called_once_with("http://localhost:8010/tools", timeout=30)
+        mock_get.assert_called_once_with("http://localhost:8010/mcp/tools", timeout=30)
 
     @patch("mcp_core.client.requests.get")
     def test_list_tools_failure(self, mock_get):

@@ -56,7 +56,7 @@ class MCPClient:
 
     def list_tools(self) -> Dict[str, Any]:
         """List available MCP tools"""
-        url = f"{self.base_url}/tools"
+        url = f"{self.base_url}/mcp/tools"
 
         try:
             response = requests.get(url, timeout=30)

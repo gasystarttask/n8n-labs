@@ -56,7 +56,7 @@ E = mc^2
                     "tool": "compile_latex",
                     "arguments": {
                         "content": latex_content,
-                        "format": "pdf",
+                        "output_format": "pdf",
                         "template": "article",
                     },
                 },
@@ -126,8 +126,6 @@ class TestScene(Scene):
                     "arguments": {
                         "script": manim_script,
                         "output_format": "mp4",
-                        "quality": "low",
-                        "preview": True,
                     },
                 },
                 timeout=60.0,  # Manim can take time
@@ -137,7 +135,6 @@ class TestScene(Scene):
                 print("✓ Manim animation created")
                 print(f"  Output: {result['result']['output_path']}")
                 print(f"  Format: {result['result']['format']}")
-                print(f"  Preview: {result['result']['preview']}")
             else:
                 print(f"✗ Manim animation failed: {result.get('error', result['result'].get('error'))}")
         except Exception as e:
@@ -150,7 +147,7 @@ class TestScene(Scene):
                 f"{server_url}/mcp/execute",
                 json={
                     "tool": "compile_latex",
-                    "arguments": {"content": "\\invalid{latex}", "format": "pdf"},
+                    "arguments": {"content": "\\invalid{latex}", "output_format": "pdf"},
                 },
             )
             result = response.json()
