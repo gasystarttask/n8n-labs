@@ -1,0 +1,87 @@
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.5cm]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{pifont}
+\usepackage{hyperref}
+\usepackage{fontawesome}
+
+% Configuration des couleurs
+\definecolor{maincolor}{RGB}{1, 22, 30}
+\definecolor{sectioncolor}{RGB}{0, 51, 102}
+
+% Configuration des hyperliens
+\hypersetup{
+    colorlinks=true,
+    linkcolor=maincolor,
+    urlcolor=maincolor,
+    pdfauthor={{FULL_NAME}},
+    pdftitle={CV}
+}
+
+% Configuration des sections
+\titleformat{\section}
+{\Large\bfseries\color{sectioncolor}}
+{}{0em}{}[{\color{sectioncolor}\titlerule[0.8pt]}]
+
+\titleformat{\subsection}
+{\large\bfseries\color{maincolor}}
+{}{0em}{}
+
+% Suppression de l'indentation des paragraphes
+\setlength{\parindent}{0pt}
+
+% Configuration des listes
+\setlist[itemize]{leftmargin=*, nosep, label=\textcolor{maincolor}{\textbullet}}
+
+\begin{document}
+
+\pagestyle{empty}
+
+% En-tête avec les coordonnées
+\begin{center}
+    {\Huge\bfseries {{FULL_NAME}}} \\[0.3cm]
+    Tel: {{PHONE}} \quad $|$ \quad
+    Email: {{EMAIL}} \\
+    LinkedIn: {{LINKEDIN}}
+\end{center}
+
+\vspace{0.5cm}
+
+% Compétences techniques
+\section*{Compétences techniques}
+\begin{itemize}
+{{SKILLS}}
+\end{itemize}
+
+\vspace{0.3cm}
+
+% Experiences professionnelles / Projets
+\section*{Expériences professionnelles / Projets}
+
+{{EXPERIENCES}}
+
+\vspace{0.3cm}
+
+% Formation
+\section*{Formation}
+
+{{EDUCATION}}
+
+\vspace{0.3cm}
+
+% Langues
+\section*{Langues}
+
+\begin{itemize}
+{{LANGUAGES}}
+\end{itemize}
+
+\end{document}

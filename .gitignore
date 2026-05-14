@@ -73,3 +73,57 @@ jspm_packages/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# MCP specific
+mcp_output/
+logs/
+temp/
+output/
+outputs/
+
+# LaTeX intermediate files
+*.aux
+*.bbl
+*.blg
+*.brf
+*.idx
+*.ind
+*.lof
+*.lot
+*.out
+*.toc
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.fls
+*.log
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+
+# Models except .gitkeep file
+models/*
+!models/.gitkeep
+
+# Examples files except .gitkeep file
+examples/*
+!examples/.gitkeep
+
+# Ignore python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore pytest cache
+.pytest_cache/
+
+# Ignore virtual environment folders
+venv/
+env/
+.venv/
+.env/

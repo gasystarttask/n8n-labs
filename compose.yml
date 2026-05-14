@@ -45,6 +45,102 @@ services:
       - "127.0.0.1:27017:27017"
     volumes:
       - mongodb_data:/data/db
+
+  # Content Creation MCP Server
+  mcp-content-creation:
+    build:
+      context: .
+      dockerfile: docker/mcp-content.Dockerfile
+    container_name: mcp-content-creation
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    ports:
+      - "127.0.0.1:8011:8011"
+    volumes:
+      - ./:/app:ro
+      - ./outputs/mcp-content:/output  # Bind mount to local outputs directory
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8011
+      - MCP_OUTPUT_DIR=/output
+    networks:
+      - default
+    command: ["python", "-m", "mcp_content_creation.server", "--mode", "http"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8011/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # EEG Dataset MCP Server
+  mcp-eeg-dataset:
+    build:
+      context: .
+      dockerfile: docker/mcp-eeg-dataset.Dockerfile
+    container_name: mcp-eeg-dataset
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    ports:
+      - "127.0.0.1:8012:8012"
+    volumes:
+      - ./:/app:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=8012
+    networks:
+      - default
+    command: ["python", "-m", "mcp_eeg_dataset.server", "--mode", "http"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8012/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Llama.cpp server
+  # llama-server:
+  #   image: ghcr.io/ggml-org/llama.cpp:server
+  #   container_name: llama-server
+  #   ports:
+  #     - "127.0.0.1:8080:8080"
+  #   volumes:
+  #     - ./models:/models
+  #   networks:
+  #     - default
+  #   command:
+  #     - -m
+  #     - /models/Llama-3.2-1B-Instruct-Q4_1.gguf
+  #     - --host
+  #     - 127.0.0.1
+  #     - --port
+  #     - "8080"
+  #     - --ctx-size
+  #     - "4096"
+  #     - -n
+  #     - "512"
+  #     - -t
+  #     - "2"
+  #     - --api-key
+  #     - "__n8n_BLANK_VALUE_e5362baf-c777-4d57-a609-6eaf1f9e87f"
+
+  # Arch Linux sandbox with SSH
+  # arch-sandbox:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/arch-sandbox.Dockerfile
+  #     args:
+  #       SANDBOX_USER: ${SANDBOX_USER:-sandbox}
+  #       SANDBOX_PASSWORD: ${SANDBOX_PASSWORD:-sandbox}
+  #   container_name: arch-sandbox
+  #   ports:
+  #     - "2222:22"
+  #   volumes:
+  #     - ./local-files:/home/${SANDBOX_USER:-sandbox}/local-files
+  #   restart: unless-stopped
+  #   networks:
+  #     - default
+
 volumes:
   n8n_data:
   mongodb_data:
