@@ -2,7 +2,8 @@
 
 ## Overview
 
-The Web Scraper MCP server provides a robust, bounded web scraping capability for use by AI agents and other services through the Model Context Protocol.
+This document describes scaffold architecture for the Web Scraper MCP package.
+In this phase, contracts and packaging are present while runtime scraping logic is deferred to Issue #5.
 
 ## Architecture
 
@@ -11,8 +12,8 @@ The Web Scraper MCP server provides a robust, bounded web scraping capability fo
 1. **WebScraperMCPServer** (`server.py`)
    - Extends `BaseMCPServer` from `mcp_core`
    - Implements tool schemas for `scrape_page` and `crawl_site`
-   - Manages Scrapy Spider instances for each request
-   - Handles timeout, error, and limit enforcement
+  - Returns scaffold responses for tool execution until runtime is implemented
+  - Can expose contracts in scaffold mode via `MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS=true`
 
 2. **Tool Wrappers** (`tools.py`)
    - Provides async function wrappers for each tool
@@ -20,13 +21,12 @@ The Web Scraper MCP server provides a robust, bounded web scraping capability fo
    - Clean delegation to server implementation
 
 3. **Scrapy Integration**
-   - Programmatic (in-process) Scrapy usage, not subprocess-based
-   - Dynamic spider configuration per request
-   - Request/response cycle controlled by MCP tool parameters
+  - Planned for Issue #5
+  - Contracts here are forward-looking and document target runtime behavior
 
-### Safety & Limits
+### Planned Safety & Limits
 
-The server enforces strict bounds on all crawl operations:
+The runtime server (Issue #5) will enforce strict bounds on crawl operations:
 
 - **`max_pages`**: Maximum pages to crawl before stopping (default: 10)
 - **`max_depth`**: Maximum link following depth from start URL (default: 2)
@@ -45,7 +45,13 @@ Both CSS and XPath selectors are supported:
 - **XPath Selectors**: XPath 1.0 syntax (e.g., `//h2[@class="title"]`)
 - **Attribute Extraction**: Special syntax for attributes (e.g., `a::attr(href)`)
 
-## Tools
+## Tool Contracts
+
+In scaffold mode, `GET /mcp/tools` returns an empty set unless
+`MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS=true` is set.
+When enabled, contracts below are visible for integration planning.
+
+## Planned Tools
 
 ### scrape_page
 
@@ -147,13 +153,13 @@ SCRAPY_SETTINGS = {
 
 ## Operational Notes
 
-### Resource Management
+### Resource Management (Planned Runtime)
 
 - Spiders are created per-request and garbage collected after completion
 - No long-lived spider pools to avoid resource exhaustion
 - Memory usage scales with page count and item size
 
-### Error Handling
+### Error Handling (Planned Runtime)
 
 Common error scenarios:
 
@@ -166,7 +172,7 @@ Common error scenarios:
 4. **Robots.txt Blocked**: Link violates robots.txt rules
    - Skips link (logs if DEBUG enabled)
 
-### Performance Considerations
+### Performance Considerations (Planned Runtime)
 
 - Use specific CSS/XPath selectors to minimize DOM traversal
 - Increase `DOWNLOAD_DELAY` if receiving 429 (rate limit) responses
@@ -178,8 +184,8 @@ Common error scenarios:
 ### MCP Endpoints
 
 - `GET /health`: Server health check (returns 200 OK)
-- `GET /mcp/tools`: List available tools and parameters
-- `POST /mcp/execute`: Execute tool with parameters
+- `GET /mcp/tools`: Empty in scaffold mode by default
+- `POST /mcp/execute`: Returns explicit not-implemented scaffold responses
 
 ### Example Integration (HTTP)
 

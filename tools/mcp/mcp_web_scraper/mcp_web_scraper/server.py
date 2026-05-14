@@ -17,11 +17,23 @@ class WebScraperMCPServer(BaseMCPServer):
             version="1.0.0",
             port=8013,
         )
+        self.enable_stub_tools = os.getenv("MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS", "false").lower() == "true"
         self.logger = setup_logging("WebScraperMCP")
         self.logger.info("Web Scraper MCP Server initialized")
 
     def get_tools(self) -> Dict[str, Dict[str, Any]]:
-        """Return available web scraper tools"""
+        """Return available tools.
+
+        During scaffold phase, tool contracts are hidden by default to avoid
+        exposing non-functional runtime behavior. Set
+        MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS=true to surface contracts explicitly.
+        """
+        if not self.enable_stub_tools:
+            return {}
+        return self._tool_contracts()
+
+    def _tool_contracts(self) -> Dict[str, Dict[str, Any]]:
+        """Return scaffolded tool schemas."""
         return {
             "scrape_page": {
                 "description": "Extract structured data from a single web page using CSS/XPath selectors",
@@ -111,7 +123,7 @@ class WebScraperMCPServer(BaseMCPServer):
             Dictionary with extracted data
         """
         self.logger.info("scrape_page called for URL: %s", url)
-        # Stub implementation - will be completed in Issue #5
+        # Scaffold-only implementation; runtime is added in Issue #5.
         return {
             "success": False,
             "error": "Not yet implemented - awaiting Issue #5 (Scrapy runtime implementation)",
@@ -142,7 +154,7 @@ class WebScraperMCPServer(BaseMCPServer):
             Dictionary with crawl results
         """
         self.logger.info("crawl_site called for start_url: %s", start_url)
-        # Stub implementation - will be completed in Issue #5
+        # Scaffold-only implementation; runtime is added in Issue #5.
         return {
             "success": False,
             "error": "Not yet implemented - awaiting Issue #5 (Scrapy runtime implementation)",

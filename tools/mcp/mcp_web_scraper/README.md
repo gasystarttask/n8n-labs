@@ -1,14 +1,15 @@
 # MCP Web Scraper
 
-A Model Context Protocol (MCP) server for efficient web scraping using Scrapy with bounded crawl controls and safety limits.
+Scaffold package for a Scrapy-based Model Context Protocol (MCP) web scraper.
+This issue establishes contracts and packaging only; runtime scraping lands in Issue #5.
 
-## Features
+## Current Scope (Scaffold)
 
-- **Single Page Scraping** (`scrape_page`): Extract structured data from a single URL using CSS or XPath selectors
-- **Site Crawling** (`crawl_site`): Crawl multiple pages with configurable limits
-- **Bounded Limits**: Control crawl behavior with max pages, depth, and timeout settings
-- **Safe Defaults**: robots.txt respect, domain restrictions, request throttling
-- **Efficient Extraction**: Support for both CSS and XPath selectors for data extraction
+- Server shell and MCP wiring
+- Tool contracts for `scrape_page` and `crawl_site`
+- Package metadata and docs layout
+
+Runtime behavior is intentionally not enabled by default in this branch.
 
 ## Installation
 
@@ -28,7 +29,18 @@ Stdio mode:
 python -m mcp_web_scraper.server --mode stdio
 ```
 
-## Tool Usage
+## Tool Contracts
+
+By default, scaffold mode hides non-functional tool contracts from `/mcp/tools`.
+To inspect contract schemas in this branch only:
+
+```bash
+MCP_WEB_SCRAPER_ENABLE_STUB_TOOLS=true python -m mcp_web_scraper.server --mode http
+```
+
+The following contracts describe planned runtime behavior.
+
+## Planned Tool Usage
 
 ### scrape_page
 
@@ -91,7 +103,7 @@ Environment variables:
 - `GET /mcp/tools`: List available tools and their schemas
 - `POST /mcp/execute`: Execute a tool
 
-## Safety Features
+## Planned Safety Features
 
 - **Domain Whitelisting**: Restrict crawling to specific domains
 - **Crawl Limits**: Enforce max pages and depth limits
@@ -107,4 +119,4 @@ This server follows the standard MCP architecture:
 - HTTP mode for integration with agents and services
 - Clean separation between server logic (server.py) and tool wrappers (tools.py)
 
-See [docs/README.md](docs/README.md) for detailed architecture and operational notes.
+See [docs/README.md](docs/README.md) for scaffold architecture and rollout notes.
