@@ -2,14 +2,13 @@
 
 import argparse
 import asyncio
-import os
 import time
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlparse
 
 import scrapy
-from scrapy.crawler import CrawlerProcess, CrawlerRunner
-from scrapy.http import HtmlResponse
+from scrapy.crawler import CrawlerRunner
+from scrapy.utils.defer import deferred_to_future
 from scrapy.utils.log import configure_logging
 from twisted.internet import asyncioreactor
 
@@ -19,10 +18,20 @@ from mcp_core.utils import setup_logging
 # Configure asyncioreactor before importing reactor
 try:
     asyncioreactor.install()
-except:
+except Exception:
     pass
 
-from twisted.internet import reactor
+
+def is_xpath_selector(selector: str) -> bool:
+    """Return True when selector appears to be XPath, False for CSS."""
+    value = selector.strip()
+    return (
+        value.startswith("/")
+        or value.startswith("./")
+        or value.startswith("../")
+        or value.startswith("(")
+        or "::" in value
+    )
 
 
 class SinglePageSpider(scrapy.Spider):
@@ -36,11 +45,18 @@ class SinglePageSpider(scrapy.Spider):
         "USER_AGENT": "mcp-web-scraper/1.0",
     }
 
-    def __init__(self, url: str, selectors: Dict[str, str], *args, **kwargs):
+    def __init__(
+        self,
+        url: str,
+        selectors: Dict[str, str],
+        output_items: List[Dict[str, Any]] = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.url = url
         self.selectors = selectors
-        self.items = []
+        self.items = output_items if output_items is not None else []
 
     def start_requests(self):
         yield scrapy.Request(self.url, callback=self.parse, errback=self.errback)
@@ -50,12 +66,9 @@ class SinglePageSpider(scrapy.Spider):
         item = {}
         for key, selector in self.selectors.items():
             try:
-                # Try CSS selector first
-                if selector.startswith("//") or "[" in selector:
-                    # Looks like XPath
+                if is_xpath_selector(selector):
                     values = response.xpath(selector).getall()
                 else:
-                    # CSS selector
                     values = response.css(selector).getall()
 
                 # Clean up HTML tags if present
@@ -95,6 +108,7 @@ class CrawlSpider(scrapy.Spider):
         allowed_domains: List[str] = None,
         max_pages: int = 10,
         max_depth: int = 2,
+        output_items: List[Dict[str, Any]] = None,
         *args,
         **kwargs,
     ):
@@ -105,7 +119,7 @@ class CrawlSpider(scrapy.Spider):
         self.allowed_domains = allowed_domains or [urlparse(start_url).netloc]
         self.max_pages = max_pages
         self.max_depth = max_depth
-        self.items = []
+        self.items = output_items if output_items is not None else []
         self.pages_crawled = 0
         self.errors = 0
 
@@ -120,7 +134,7 @@ class CrawlSpider(scrapy.Spider):
         item = {}
         for key, selector in self.selectors.items():
             try:
-                if selector.startswith("//") or "[" in selector:
+                if is_xpath_selector(selector):
                     values = response.xpath(selector).getall()
                 else:
                     values = response.css(selector).getall()
@@ -179,6 +193,24 @@ class WebScraperMCPServer(BaseMCPServer):
             port=8013,
         )
         self.logger = setup_logging("WebScraperMCP")
+        configure_logging({"LOG_LEVEL": "ERROR"})
+        self._single_page_runner = CrawlerRunner(
+            {
+                "CONCURRENT_REQUESTS": 1,
+                "DOWNLOAD_DELAY": 0,
+                "USER_AGENT": "mcp-web-scraper/1.0",
+                "ROBOTSTXT_OBEY": True,
+            }
+        )
+        self._crawl_runner = CrawlerRunner(
+            {
+                "CONCURRENT_REQUESTS": 4,
+                "CONCURRENT_REQUESTS_PER_DOMAIN": 2,
+                "DOWNLOAD_DELAY": 0.5,
+                "USER_AGENT": "mcp-web-scraper/1.0",
+                "ROBOTSTXT_OBEY": True,
+            }
+        )
         self.logger.info("Web Scraper MCP Server initialized")
 
     def get_tools(self) -> Dict[str, Dict[str, Any]]:
@@ -275,26 +307,17 @@ class WebScraperMCPServer(BaseMCPServer):
         try:
             self.logger.info("scrape_page called for URL: %s", url)
 
-            # Configure and create process
-            configure_logging({"LOG_LEVEL": "ERROR"})
-            process = CrawlerProcess(
-                {
-                    "CONCURRENT_REQUESTS": 1,
-                    "DOWNLOAD_DELAY": 0,
-                    "DOWNLOAD_TIMEOUT": timeout,
-                    "USER_AGENT": "mcp-web-scraper/1.0",
-                    "ROBOTSTXT_OBEY": True,
-                }
+            items: List[Dict[str, Any]] = []
+            deferred = self._single_page_runner.crawl(
+                SinglePageSpider,
+                url=url,
+                selectors=selectors,
+                output_items=items,
             )
 
-            spider = SinglePageSpider(url, selectors)
-            process.crawl(spider)
-
-            # Run with timeout
-            loop = asyncio.get_event_loop()
             try:
                 await asyncio.wait_for(
-                    loop.run_in_executor(None, process.start),
+                    deferred_to_future(deferred),
                     timeout=timeout,
                 )
             except asyncio.TimeoutError:
@@ -309,7 +332,7 @@ class WebScraperMCPServer(BaseMCPServer):
             return {
                 "success": True,
                 "url": url,
-                "data": spider.items[0] if spider.items else {},
+                "data": items[0] if items else {},
                 "elapsed_time": time.time() - start_time,
             }
 
@@ -353,20 +376,7 @@ class WebScraperMCPServer(BaseMCPServer):
             if not allowed_domains:
                 allowed_domains = [urlparse(start_url).netloc]
 
-            # Configure logging
-            configure_logging({"LOG_LEVEL": "ERROR"})
-
-            process = CrawlerProcess(
-                {
-                    "CONCURRENT_REQUESTS": 4,
-                    "CONCURRENT_REQUESTS_PER_DOMAIN": 2,
-                    "DOWNLOAD_DELAY": 0.5,
-                    "DOWNLOAD_TIMEOUT": timeout_seconds,
-                    "USER_AGENT": "mcp-web-scraper/1.0",
-                    "ROBOTSTXT_OBEY": True,
-                }
-            )
-
+            items: List[Dict[str, Any]] = []
             spider = CrawlSpider(
                 start_url=start_url,
                 follow_links=follow_links,
@@ -374,15 +384,12 @@ class WebScraperMCPServer(BaseMCPServer):
                 allowed_domains=allowed_domains,
                 max_pages=max_pages,
                 max_depth=max_depth,
+                output_items=items,
             )
-
-            process.crawl(spider)
-
-            # Run with timeout
-            loop = asyncio.get_event_loop()
+            deferred = self._crawl_runner.crawl(spider)
             try:
                 await asyncio.wait_for(
-                    loop.run_in_executor(None, process.start),
+                    deferred_to_future(deferred),
                     timeout=timeout_seconds,
                 )
             except asyncio.TimeoutError:
@@ -393,12 +400,12 @@ class WebScraperMCPServer(BaseMCPServer):
                 "success": True,
                 "start_url": start_url,
                 "pages_crawled": spider.pages_crawled,
-                "items_extracted": len(spider.items),
-                "items": spider.items,
+                "items_extracted": len(items),
+                "items": items,
                 "stats": {
                     "elapsed_time": elapsed,
                     "items_per_page": (
-                        len(spider.items) / spider.pages_crawled
+                        len(items) / spider.pages_crawled
                         if spider.pages_crawled > 0
                         else 0
                     ),
