@@ -7,6 +7,7 @@ from collections import deque
 from typing import Any, Dict, List, Set, Tuple
 from urllib.parse import urldefrag, urljoin, urlparse
 from urllib.error import HTTPError, URLError
+from urllib import robotparser
 from urllib.request import Request, urlopen
 
 from twisted.internet import asyncioreactor
@@ -205,6 +206,8 @@ class WebScraperMCPServer(BaseMCPServer):
         )
         self.logger = setup_logging("WebScraperMCP")
         configure_logging({"LOG_LEVEL": "ERROR"})
+        self._robots_cache: Dict[str, robotparser.RobotFileParser] = {}
+        self._last_request_at: Dict[str, float] = {}
         self.logger.info("Web Scraper MCP Server initialized")
 
     @staticmethod
@@ -236,8 +239,19 @@ class WebScraperMCPServer(BaseMCPServer):
         return [href.strip() for href in hrefs if isinstance(href, str) and href.strip()]
 
     @staticmethod
-    def _blocking_fetch(url: str, timeout: int) -> Tuple[str, int, str]:
-        req = Request(url, headers=DEFAULT_HEADERS)
+    def _classify_error(error_message: str) -> str | None:
+        lowered = error_message.lower()
+        if "anti-bot" in lowered or "captcha" in lowered or "cloudflare" in lowered or "datadome" in lowered:
+            return "anti_bot_protection"
+        if "forbidden" in lowered or "http 403" in lowered:
+            return "access_forbidden"
+        if "robots.txt" in lowered:
+            return "robots_disallow"
+        return None
+
+    @staticmethod
+    def _blocking_fetch(url: str, timeout: int, headers: Dict[str, str]) -> Tuple[str, int, str]:
+        req = Request(url, headers=headers)
         try:
             with urlopen(req, timeout=timeout) as response:
                 body = response.read().decode("utf-8", errors="replace")
@@ -256,8 +270,45 @@ class WebScraperMCPServer(BaseMCPServer):
         except URLError as e:
             raise RuntimeError(f"URL Error: {e.reason}") from e
 
-    async def _fetch_url(self, url: str, timeout: int) -> Tuple[str, int, str]:
-        return await asyncio.to_thread(self._blocking_fetch, url, timeout)
+    @staticmethod
+    def _build_headers(compliant_mode: bool) -> Dict[str, str]:
+        headers = dict(DEFAULT_HEADERS)
+        if compliant_mode:
+            headers["User-Agent"] = "mcp-web-scraper/1.0 (+https://github.com/gasystarttask/n8n-labs)"
+        return headers
+
+    async def _enforce_request_interval(self, url: str, min_request_interval_seconds: float):
+        domain = urlparse(url).netloc
+        now = time.monotonic()
+        last = self._last_request_at.get(domain)
+        if last is not None:
+            wait = min_request_interval_seconds - (now - last)
+            if wait > 0:
+                await asyncio.sleep(wait)
+        self._last_request_at[domain] = time.monotonic()
+
+    async def _is_allowed_by_robots(self, url: str, user_agent: str) -> bool:
+        parsed = urlparse(url)
+        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        parser = self._robots_cache.get(robots_url)
+        if parser is None:
+            parser = robotparser.RobotFileParser()
+            parser.set_url(robots_url)
+            await asyncio.to_thread(parser.read)
+            self._robots_cache[robots_url] = parser
+        return bool(parser.can_fetch(user_agent, url))
+
+    async def _fetch_url(
+        self,
+        url: str,
+        timeout: int,
+        headers: Dict[str, str],
+        compliant_mode: bool,
+        min_request_interval_seconds: float,
+    ) -> Tuple[str, int, str]:
+        if compliant_mode:
+            await self._enforce_request_interval(url, min_request_interval_seconds)
+        return await asyncio.to_thread(self._blocking_fetch, url, timeout, headers)
 
     def get_tools(self) -> Dict[str, Dict[str, Any]]:
         """Return available web scraper tools"""
@@ -280,6 +331,16 @@ class WebScraperMCPServer(BaseMCPServer):
                             "type": "integer",
                             "default": 30,
                             "description": "Request timeout in seconds",
+                        },
+                        "compliant_mode": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "When true, enforce robots.txt and per-domain request pacing",
+                        },
+                        "min_request_interval_seconds": {
+                            "type": "number",
+                            "default": 1.0,
+                            "description": "Minimum delay between requests to the same domain in compliant mode",
                         },
                     },
                     "required": ["url", "selectors"],
@@ -323,6 +384,16 @@ class WebScraperMCPServer(BaseMCPServer):
                             "default": 120,
                             "description": "Total crawl timeout in seconds",
                         },
+                        "compliant_mode": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "When true, enforce robots.txt and per-domain request pacing",
+                        },
+                        "min_request_interval_seconds": {
+                            "type": "number",
+                            "default": 1.0,
+                            "description": "Minimum delay between requests to the same domain in compliant mode",
+                        },
                     },
                     "required": ["start_url", "follow_links", "selectors"],
                 },
@@ -334,13 +405,31 @@ class WebScraperMCPServer(BaseMCPServer):
         url: str,
         selectors: Dict[str, str],
         timeout: int = 30,
+        compliant_mode: bool = True,
+        min_request_interval_seconds: float = 1.0,
     ) -> Dict[str, Any]:
         """Extract structured data from a single web page."""
         start_time = time.time()
         try:
             self.logger.info("scrape_page called for URL: %s", url)
+            headers = self._build_headers(compliant_mode)
+            if compliant_mode:
+                if not await self._is_allowed_by_robots(url, headers["User-Agent"]):
+                    return {
+                        "success": False,
+                        "url": url,
+                        "blocked_reason": "robots_disallow",
+                        "error": "Blocked by robots.txt policy",
+                        "elapsed_time": time.time() - start_time,
+                    }
             try:
-                final_url, status, html = await self._fetch_url(url, timeout)
+                final_url, status, html = await self._fetch_url(
+                    url,
+                    timeout,
+                    headers,
+                    compliant_mode,
+                    min_request_interval_seconds,
+                )
             except asyncio.TimeoutError:
                 self.logger.error("Scrape page timeout for URL: %s", url)
                 return {
@@ -353,6 +442,7 @@ class WebScraperMCPServer(BaseMCPServer):
                 return {
                     "success": False,
                     "url": url,
+                    "blocked_reason": self._classify_error(str(e)),
                     "error": str(e),
                     "elapsed_time": time.time() - start_time,
                 }
@@ -372,6 +462,7 @@ class WebScraperMCPServer(BaseMCPServer):
             return {
                 "success": False,
                 "url": url,
+                "blocked_reason": self._classify_error(str(e)),
                 "error": str(e),
                 "elapsed_time": time.time() - start_time,
             }
@@ -385,17 +476,21 @@ class WebScraperMCPServer(BaseMCPServer):
         max_pages: int = 10,
         max_depth: int = 2,
         timeout_seconds: int = 120,
+        compliant_mode: bool = True,
+        min_request_interval_seconds: float = 1.0,
     ) -> Dict[str, Any]:
         """Crawl a website with bounded limits."""
         start_time = time.time()
         try:
             self.logger.info("crawl_site called for start_url: %s", start_url)
+            headers = self._build_headers(compliant_mode)
 
             domain_allowlist: Set[str] = set(allowed_domains or [urlparse(start_url).netloc])
             queue: deque[Tuple[str, int]] = deque([(start_url, 0)])
             visited: Set[str] = set()
             items: List[Dict[str, Any]] = []
             errors = 0
+            blocked_reason = None
 
             while queue and len(items) < max_pages:
                 elapsed = time.time() - start_time
@@ -413,9 +508,22 @@ class WebScraperMCPServer(BaseMCPServer):
                 visited.add(normalized_url)
                 remaining = max(1, int(timeout_seconds - elapsed))
 
+                if compliant_mode:
+                    if not await self._is_allowed_by_robots(normalized_url, headers["User-Agent"]):
+                        blocked_reason = "robots_disallow"
+                        errors += 1
+                        continue
+
                 try:
-                    final_url, _status, html = await self._fetch_url(normalized_url, remaining)
-                except Exception:
+                    final_url, _status, html = await self._fetch_url(
+                        normalized_url,
+                        remaining,
+                        headers,
+                        compliant_mode,
+                        min_request_interval_seconds,
+                    )
+                except Exception as e:
+                    blocked_reason = blocked_reason or self._classify_error(str(e))
                     errors += 1
                     continue
 
@@ -441,6 +549,7 @@ class WebScraperMCPServer(BaseMCPServer):
                 "pages_crawled": pages_crawled,
                 "items_extracted": len(items),
                 "items": items,
+                "blocked_reason": blocked_reason,
                 "stats": {
                     "elapsed_time": elapsed,
                     "items_per_page": (

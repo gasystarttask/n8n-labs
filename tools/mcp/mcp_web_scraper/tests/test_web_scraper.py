@@ -46,10 +46,16 @@ class TestWebScraperMCPServer:
         assert "url" in props
         assert "selectors" in props
         assert "timeout" in props
+        assert "compliant_mode" in props
+        assert "min_request_interval_seconds" in props
 
         assert props["url"]["type"] == "string"
         assert props["timeout"]["type"] == "integer"
         assert props["timeout"]["default"] == 30
+        assert props["compliant_mode"]["type"] == "boolean"
+        assert props["compliant_mode"]["default"] is True
+        assert props["min_request_interval_seconds"]["type"] == "number"
+        assert props["min_request_interval_seconds"]["default"] == 1.0
         assert props["selectors"]["type"] == "object"
 
     def test_crawl_site_tool_schema(self, server):
@@ -71,10 +77,14 @@ class TestWebScraperMCPServer:
         assert "max_depth" in props
         assert "timeout_seconds" in props
         assert "allowed_domains" in props
+        assert "compliant_mode" in props
+        assert "min_request_interval_seconds" in props
 
         assert props["max_pages"]["default"] == 10
         assert props["max_depth"]["default"] == 2
         assert props["timeout_seconds"]["default"] == 120
+        assert props["compliant_mode"]["default"] is True
+        assert props["min_request_interval_seconds"]["default"] == 1.0
 
     def test_crawl_limits_enforcement_schema(self, server):
         tools = server.get_tools()
